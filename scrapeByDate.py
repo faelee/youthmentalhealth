@@ -1,107 +1,77 @@
 import json
-import time
-import math
 import requests
 import pandas as pd
-import numpy as np
 import praw
 
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 
 
-def give_me_intervals(start_at, number_of_days_per_interval=3):
-    end_at = math.ceil(datetime.utcnow().timestamp())
-
-    ## 1 day = 86400,
-    period = (86400 * number_of_days_per_interval)
-
-    end = start_at + period
-    yield (int(start_at), int(end))
-
-    padding = 1
-    while end <= end_at:
-        start_at = end + padding
-        end = (start_at - padding) + period
-        yield int(start_at), int(end)
+def getPushshiftData(after, before, sub):
+    url = 'https://api.pushshift.io/reddit/search/submission/?size=1000&after=' + str(after) + '&before=' + str(before)\
+          + '&subreddit='+str(sub)
+    print(url)
+    r = requests.get(url)
+    data = json.loads(r.text)
+    return data['data']
 
 
-def make_request(uri, max_retries=5):
-    def fire_away(uri):
-        response = requests.get(uri)
-        assert response.status_code == 200
-        return json.loads(response.content)
+def collectSubData(subm):
+    subData = list()  # list to store data points
+    sub_id = subm['id']
+    created = datetime.fromtimestamp(subm['created_utc'])  # 1520561700.0
 
-    current_tries = 1
-    while current_tries < max_retries:
-        try:
-            response = fire_away(uri)
-            return response
-        except:
-            time.sleep(.150)
-            current_tries += 1
+    subData.append((sub_id, created))
+    subStats[sub_id] = subData
 
-    return fire_away(uri)
+#Subreddit to query
+subreddit= input("Subreddit Name (ex. for the Subreddit r/NFlying type NFlying): ")
 
+#before and after dates
+yearB = int(input("Year of Start Date (4 digits): "))
+monthB = int(input("Month of Start Date (2 digits): "))
+dayB = int(input("Day of Start Date (2 digits): "))
+dtB = datetime(yearB, monthB, dayB)
+after = str(int(dtB.replace(tzinfo=timezone.utc).timestamp()))
 
-def pull_posts_for(subreddit, start_at, end_at):
-    def map_posts(posts):
-        return list(map(lambda post: {
-            'id': post['id'],
-            'created_utc': post['created_utc'],
-            'prefix': 't4_'
-        }, posts))
+yearA = int(input("Year of End Date (4 digits): "))
+monthA = int(input("Month of End Date (2 digits): "))
+dayA = int(input("Day of End Date (2 digits): "))
+dtA = datetime(yearA, monthA, dayA)
+before = str(int(dtA.replace(tzinfo=timezone.utc).timestamp()))
 
-    SIZE = 500
-    URI_TEMPLATE = r'https://api.pushshift.io/reddit/search/submission?subreddit={}&after={}&before={}&size={}'
+print(before)
+print(after)
 
-    post_collections = map_posts(make_request(URI_TEMPLATE.format(subreddit, start_at, end_at, SIZE))['data'])
-
-    n = len(post_collections)
-    while n == SIZE:
-        last = post_collections[-1]
-        new_start_at = last['created_utc'] - 10
-
-        more_posts = map_posts(make_request(URI_TEMPLATE.format(subreddit, new_start_at, end_at, SIZE))['data'])
-
-        n = len(more_posts)
-        post_collections.extend(more_posts)
-
-    return post_collections
-
-
-end_at = math.ceil(datetime.utcnow().timestamp())
-
-subreddit = 'SF9'
-
-start_at = math.floor((datetime.utcnow() - timedelta(days=20)).timestamp())
-
-posts = []
-for interval in give_me_intervals(start_at, 7):
-    pulled_posts = pull_posts_for(
-        subreddit, interval[0], interval[1])
-
-    posts.extend(pulled_posts)
-
-print(posts)
-
+subCount = 0
+subStats = {}
 posts_from_reddit = []
+#comments_from_reddit = []
 
-reddit = praw.Reddit(client_id="",#my client id
-                     client_secret="",  #your client secret
-                     user_agent="", #user agent name
-                     username = "",     # your reddit username
-                     password = "")
+reddit = praw.Reddit(client_id="NR9oyISKuXum1A",#my client id
+                     client_secret="Fp-ceh8LbTC8VsaRQF4hZtWg4z4",  #your client secret
+                     user_agent="covid_research", #user agent name
+                     username = "smoolsheep",     # your reddit username
+                     password = "illbeyourhome")
 
 TIMEOUT_AFTER_COMMENT_IN_SECS = .250
 
-for submission_id in np.unique([post['id'] for post in posts]):
-    submission = reddit.submission(id=submission_id)
+data = getPushshiftData(after, before, subreddit)
+# Will run until all posts have been gathered
+# from the 'after' date up until before date
+while len(data) > 0:
+    for submission in data:
+        collectSubData(submission)
+        submission_id = submission['id']
+        subm = reddit.submission(id=submission_id)
+        posts_from_reddit.append(subm)
+        subCount += 1
+    # Calls getPushshiftData() with the created date of the last submission
+    print(len(data))
+    print(str(datetime.fromtimestamp(data[len(data) - 1]['created_utc'])))
+    after = data[-1]['created_utc']
+    data = getPushshiftData(after, before, subreddit)
 
-    posts_from_reddit.append(submission)
-
-    submission.comments.replace_more(limit=None)
-
-print(posts_from_reddit)
+print(len(data))
 
 topics_dict = {
     "title": [],
@@ -128,7 +98,7 @@ for submission in posts_from_reddit:
     topics_dict["url"].append(submission.url)
     topics_dict["comms_num"].append(submission.num_comments)
     topics_dict["created"].append(submission.created)
-    topics_dict["username"].append(submission.author.name)
+    topics_dict["username"].append(submission.author)
     topics_dict["body"].append(submission.selftext)
 
         ##### Acessing comments on the post
@@ -139,7 +109,7 @@ for submission in posts_from_reddit:
         comments_dict["comment_body"].append(comment.body)
         comments_dict["comment_link_id"].append(comment.link_id)
         comments_dict["comment_created"].append(comment.created)
-        comments_dict["comment_username"].append(comment.author.name)
+        comments_dict["comment_username"].append(comment.author)
 
 
 def get_date(created):
