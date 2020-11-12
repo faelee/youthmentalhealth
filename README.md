@@ -8,5 +8,6 @@ Make sure to follow the exact spelling and punctuation of the Subreddit. For exa
 Make sure to write your year in 4 digits (ex. 2020), your month in 2 digits (ex. 01), and your day in 2 digits (ex. 01).
 >* For setting end date, on line 40, you can also replace `yearA`, `monthA`, and `dayA` in `dtA = datetime(yearA, monthA, dayA)` with the end year, month, and day, respectively. <br />
 Make sure to write your year in 4 digits (ex. 2020), your month in 2 digits (ex. 01), and your day in 2 digits (ex. 01). <br />
-####Notes about the .csv files
+
+#### Notes about the .csv files
 * Sometimes the author name will be blank because the user who posted the subreddit has since deleted their account.
