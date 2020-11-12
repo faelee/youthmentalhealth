@@ -1,6 +1,6 @@
 # Youth Mental Health Research Project
 1. On line 50, input your Reddit login and project information.
->[Click here](https://towardsdatascience.com/scraping-reddit-data-1c0af3040768) and g o to the Getting Started" Header to see how to create a Reddit project and find out what Client ID, Client Secret, and User Agent are. <br />
+>[Click here](https://towardsdatascience.com/scraping-reddit-data-1c0af3040768) and go to the Getting Started" Header to see how to create a Reddit project and find out what Client ID, Client Secret, and User Agent are. <br />
 2. Follow printed directions in Terminal for setting Subreddit. 
 >* For setting Subreddit name, on line 27, you can also set `subreddit =` to the name of your subreddit.  <br />
 Make sure to follow the exact spelling and punctuation of the Subreddit. For example, if your Subreddit was r/NFlying, you would type `subreddit = NFlying`
