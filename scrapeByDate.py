@@ -30,28 +30,19 @@ def getPushshiftData(after, before, sub):
         time.sleep (0.5)
 
 
-def collectSubData(subm):
-    subData = list()  # list to store data points
-    sub_id = subm['id']
-    created = datetime.fromtimestamp(subm['created_utc'])  # 1520561700.0
-
-    subData.append((sub_id, created))
-    subStats[sub_id] = subData
-
-
 def get_date(created):
     return datetime.fromtimestamp(created)
 
 
 #Subreddit to query
 # subreddit= input("Subreddit Name (ex. for the Subreddit r/NFlying type NFlying): ")
-subreddit = "teenagers"
+subreddit = "SF9"
 
 #before and after dates
 # yearB = int(input("Year of Start Date (4 digits): "))
 # monthB = int(input("Month of Start Date (2 digits): "))
 # dayB = int(input("Day of Start Date (2 digits): "))
-yearB = 2019
+yearB = 2020
 monthB =  1
 dayB = 1
 dtB = datetime(yearB, monthB, dayB, tzinfo=timezone.utc)
@@ -68,8 +59,6 @@ before = str(int(dtA.timestamp()))
 
 print(before)
 print(after)
-
-subStats = {}
 
 reddit = praw.Reddit(client_id="",#my client id
                      client_secret="",  #your client secret
@@ -107,9 +96,8 @@ data = getPushshiftData(after, before, subreddit)
 # from the 'after' date up until before date
 while len(data) > 0:
     post_lazy_list = []
-    for submission in data:
-        collectSubData(submission)
-        submission_id = submission['id']
+    for subm in data:
+        submission_id = subm['id']
         submission = reddit.submission(id=submission_id)
         post_lazy_list.append (submission)
 
