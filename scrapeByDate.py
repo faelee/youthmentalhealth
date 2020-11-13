@@ -36,13 +36,13 @@ def get_date(created):
 
 #Subreddit to query
 # subreddit= input("Subreddit Name (ex. for the Subreddit r/NFlying type NFlying): ")
-subreddit = "SF9"
+subreddit = "teenagers"
 
 #before and after dates
 # yearB = int(input("Year of Start Date (4 digits): "))
 # monthB = int(input("Month of Start Date (2 digits): "))
 # dayB = int(input("Day of Start Date (2 digits): "))
-yearB = 2020
+yearB = 2019
 monthB =  1
 dayB = 1
 dtB = datetime(yearB, monthB, dayB, tzinfo=timezone.utc)
