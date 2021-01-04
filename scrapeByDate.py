@@ -1,10 +1,12 @@
 import json
 import requests
-import pandas as pd
 import praw
+import prawcore
 import time
 import os
 import traceback
+import sys
+import csv
 
 from datetime import datetime, timezone
 import pprint
@@ -30,122 +32,194 @@ def getPushshiftData(after, before, sub):
         time.sleep (0.5)
 
 
+def collectSubData(subm):
+    subData = list()  # list to store data points
+    sub_id = subm['id']
+    created = datetime.fromtimestamp(subm['created_utc'])  # 1520561700.0
+
+    subData.append((sub_id, created))
+    subStats[sub_id] = subData
+
+
 def get_date(created):
     return datetime.fromtimestamp(created)
 
 
+if len (sys.argv) < 8:
+    print ("Usage: {} start_year start_month start_day end_year end_month end_day subreddit [begin timestamp]".format (sys.argv[0]))
+    quit ()
+
+
 #Subreddit to query
 # subreddit= input("Subreddit Name (ex. for the Subreddit r/NFlying type NFlying): ")
-subreddit = "teenagers"
+subreddit = sys.argv[7]
 
 #before and after dates
 # yearB = int(input("Year of Start Date (4 digits): "))
 # monthB = int(input("Month of Start Date (2 digits): "))
 # dayB = int(input("Day of Start Date (2 digits): "))
-yearB = 2019
-monthB =  1
-dayB = 1
+yearB = int (sys.argv[1])
+monthB =  int (sys.argv[2])
+dayB = int (sys.argv[3])
 dtB = datetime(yearB, monthB, dayB, tzinfo=timezone.utc)
 after = str(int(dtB.timestamp()))
 
 # yearA = int(input("Year of End Date (4 digits): "))
 # monthA = int(input("Month of End Date (2 digits): "))
 # dayA = int(input("Day of End Date (2 digits): "))
-yearA = 2020
-monthA = 10
-dayA = 31
+yearA = int (sys.argv[4])
+monthA =  int (sys.argv[5])
+dayA = int (sys.argv[6])
 dtA = datetime(yearA, monthA, dayA, tzinfo=timezone.utc)
 before = str(int(dtA.timestamp()))
+
+if len(sys.argv) > 8:
+  after = sys.argv[8]
+  csv_header = False
+else:
+  csv_header = True
+
+path_suffix = "{}-{}-{}_{}-{}-{}".format (yearB, monthB, dayB, yearA, monthA, dayA)
 
 print(before)
 print(after)
 
-reddit = praw.Reddit(client_id="",#my client id
-                     client_secret="",  #your client secret
-                     user_agent="", #user agent name
-                     username = "",     # your reddit username
-                     password = "")
+subStats = {}
+
+# reddit = praw.Reddit(client_id="NR9oyISKuXum1A",#my client id
+#                     client_secret="Fp-ceh8LbTC8VsaRQF4hZtWg4z4",  #your client secret
+#                     user_agent="covid_research", #user agent name
+#                     username = "smoolsheep",     # your reddit username
+#                     password = "illbeyourhome")
+reddit = praw.Reddit(client_id="JJHRTUklGCcjgA",#my client id
+                     client_secret="0FUN6GCDISZyeyphy5qYeyCbiL6K4w",  #your client secret
+                     user_agent="Mental health research", #user agent name
+                     username = "xyjadm",     # your reddit username
+                     password = "24689yhnjm")
 
 TIMEOUT_AFTER_COMMENT_IN_SECS = .250
 
-topics_dict_empty = {
-    "title": [],
-    "score": [],
-    "id": [],
-    "url": [],
-    "comms_num": [],
-    "created": [],
-    "username": [],
-    "body": []
-}
-comments_dict_empty = {
-    "comment_id": [],
-    "comment_parent_id": [],
-    "comment_body": [],
-    "comment_link_id": [],
-    "comment_created": [],
-    "comment_username": []
-}
-csv_header = True
+post_header = [
+    "number",
+    "title",
+    "score",
+    "id",
+    "url",
+    "comms_num",
+    "created_utc",
+    "username",
+#    "user_id",
+    "body"
+]
+comment_header = [
+    "number",
+    "post_id",
+    "post_id_2",
+    "comment_id",
+    "comment_parent_id",
+    "comment_body",
+    "comment_link_id",
+    "comment_created_utc",
+    "comment_username"
+#    "comment_user_id"
+]
 total = 0
-subtotal = 0
+comment_total = 0
 start_time = datetime.now ()
+
+path_prefix = os.path.join ("data", subreddit)
+if not os.path.isdir(path_prefix):
+    os.makedirs(path_prefix)
+for t in ["comments", "posts"]:
+    if not os.path.isdir(os.path.join (path_prefix, t)):
+        os.makedirs(os.path.join (path_prefix, t))
 
 data = getPushshiftData(after, before, subreddit)
 # Will run until all posts have been gathered
 # from the 'after' date up until before date
 while len(data) > 0:
+  try:
     post_lazy_list = []
-    for subm in data:
-        submission_id = subm['id']
-        submission = reddit.submission(id=submission_id)
-        post_lazy_list.append (submission)
+    for submission in data:
+        collectSubData(submission)
+        submission_id = submission['id']
+        subm = reddit.submission(id=submission_id)
+        post_lazy_list.append (subm)
 
     while True:
-      topic_dict = topics_dict_empty
-      comment_dict = comments_dict_empty
+      topic_dict_list = []
+      comment_dict_list = []
+      temp_post_total = total
+      temp_comment_total = comment_total
       try:
           for submission in post_lazy_list:
-              topic_dict["title"].append (submission.title)
-              topic_dict["score"].append (submission.score)
-              topic_dict["id"].append (submission.id)
-              topic_dict["url"].append (submission.url)
-              topic_dict["comms_num"].append (submission.num_comments)
-              topic_dict["created"].append (submission.created)
-              topic_dict["username"].append (submission.author)
-              topic_dict["body"].append (submission.selftext)
+              try:
+                topic_dict = {}
+                subm_copy = str (submission)
+                topic_dict["title"] = submission.title
+                topic_dict["score"] = submission.score
+                topic_dict["id"] = submission.id
+                topic_dict["url"] = submission.url
+                topic_dict["comms_num"] = submission.num_comments
+                topic_dict["created_utc"] = submission.created_utc
+                topic_dict["username"] = submission.author
+                topic_dict["body"] = submission.selftext
+                temp_post_total +=1
+                topic_dict["number"] = temp_post_total
+                topic_dict_list.append (topic_dict)
 
-              ##### Acessing comments on the post
-              submission.comments.replace_more(limit=None)
+                ##### Acessing comments on the post
+                submission.comments.replace_more(limit=None)
 
-              for comment in submission.comments.list():
-                  comment_dict["comment_id"].append(comment.id)
-                  comment_dict["comment_parent_id"].append(comment.parent_id)
-                  comment_dict["comment_body"].append(comment.body)
-                  comment_dict["comment_link_id"].append(comment.link_id)
-                  comment_dict["comment_created"].append(comment.created)
-                  comment_dict["comment_username"].append(comment.author)
+                for comment in submission.comments.list():
+                    temp_comment_total += 1
+                    comment_dict = {}
+                    comment_dict["number"] = temp_comment_total
+                    comment_dict["post_id"] = submission.id
+                    comment_dict["post_id_2"] = comment.link_id
+                    comment_dict["comment_id"] = comment.id
+                    comment_dict["comment_parent_id"] = comment.parent_id
+                    comment_dict["comment_body"] = comment.body
+                    comment_dict["comment_link_id"] = comment.link_id
+                    comment_dict["comment_created_utc"] = comment.created_utc
+                    comment_dict["comment_username"] = comment.author
+                    comment_dict_list.append (comment_dict)
+              except prawcore.exceptions.NotFound:
+                sys.stderr.write("Not found: %s\n" % subm_copy)
+              except AssertionError:
+                sys.stderr.write("Rate limit: %s\n" % subm_copy)
+
 
               # pp.pprint (topic_dict)
-              total += 1
-              if total % 10 == 0:
+              if temp_post_total % 10 == 0:
                   time_delta = (datetime.now () - start_time).total_seconds ()
-                  print ("Total {} in {} sec, avg one per {:.2f} sec".format(total, time_delta, time_delta / total))
+                  print ("Total {} in {} sec, avg one per {:.2f} sec".format(temp_post_total, time_delta, time_delta / temp_post_total))
           break
       except:
           traceback.print_exc()
           print ("Exception. Wait for 2 sec.")
           time.sleep (2)
 
-    post_comments = pd.DataFrame(comment_dict)
-    ttimestamp = post_comments["comment_created"].apply(get_date)
-    post_comments = post_comments.assign(timestamp=ttimestamp)
-    post_comments.to_csv("data/" + subreddit + "_comments_subreddit.csv", mode = "a", header = csv_header)
+    total = temp_post_total
+    comment_total = temp_comment_total
 
-    post_data = pd.DataFrame(topic_dict)
-    _timestamp = post_data["created"].apply(get_date)
-    post_data = post_data.assign(timestamp=_timestamp)
-    post_data.to_csv("data/" + subreddit + "_subreddit.csv", mode = "a", header = csv_header)
+    try:
+        with open (os.path.join (path_prefix, "comments", path_suffix + ".csv"), "a") as comment_file:
+            writer = csv.DictWriter(comment_file, fieldnames=comment_header)
+            if csv_header:
+                writer.writeheader()
+            for d in comment_dict_list:
+                writer.writerow(d)
+
+        with open (os.path.join (path_prefix, "posts", path_suffix + ".csv"), "a") as post_file:
+            writer = csv.DictWriter(post_file, fieldnames=post_header)
+            if csv_header:
+                writer.writeheader()
+            for d in topic_dict_list:
+                writer.writerow(d)
+    except IOError:
+        traceback.print_exc()
+        quit ()
 
     csv_header = False
 
@@ -156,3 +230,5 @@ while len(data) > 0:
     after = data[-1]['created_utc']
     data = getPushshiftData(after, before, subreddit)
     time.sleep (0.5)
+  except KeyboardInterrupt:
+    sys.exit ()
